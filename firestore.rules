@@ -1,0 +1,130 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Validation Blueprints ---
+    
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt', 'preferences']) &&
+             data.keys().size() <= 6 &&
+             data.uid == request.auth.uid &&
+             data.email is string && data.email.size() <= 200 &&
+             data.createdAt is string &&
+             data.preferences is map;
+    }
+
+    function isValidAccount(data) {
+      return data.keys().hasAll(['userId', 'name', 'type', 'balance', 'currency', 'lastUpdated']) &&
+             data.keys().size() <= 8 &&
+             data.userId == request.auth.uid &&
+             data.name is string && data.name.size() <= 100 &&
+             data.type in ['checking', 'savings', 'investment', 'crypto', 'cash'] &&
+             data.balance is number &&
+             data.currency is string && data.currency.size() <= 5;
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['userId', 'accountId', 'amount', 'date', 'description', 'category', 'type']) &&
+             data.keys().size() <= 8 &&
+             data.userId == request.auth.uid &&
+             isValidId(data.accountId) &&
+             data.amount is number &&
+             data.type in ['income', 'expense'] &&
+             data.description is string && data.description.size() <= 500 &&
+             data.category is string && data.category.size() <= 100 &&
+             // Master Gate: Verify account exists and belongs to user
+             get(/databases/$(database)/documents/accounts/$(data.accountId)).data.userId == request.auth.uid;
+    }
+
+    function isValidInsight(data) {
+      return data.keys().hasAll(['userId', 'content', 'title', 'type', 'createdAt']) &&
+             data.keys().size() <= 5 &&
+             data.userId == request.auth.uid &&
+             data.content is string && data.content.size() <= 2000 &&
+             data.title is string && data.title.size() <= 200 &&
+             data.type in ['advice', 'alert', 'summary'];
+    }
+
+    function isValidReport(data) {
+      return data.keys().hasAll(['userId', 'companyName', 'createdAt']) &&
+             data.userId == request.auth.uid &&
+             data.companyName is string && data.companyName.size() <= 200 &&
+             data.createdAt is string &&
+             (data.ticker == null || (data.ticker is string && data.ticker.size() <= 20)) &&
+             (data.period == null || (data.period is string && data.period.size() <= 100)) &&
+             (data.analysis == null || (data.analysis is string && data.analysis.size() <= 50000));
+    }
+
+    // --- Rules ---
+
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && 
+                      isValidUser(incoming()) && 
+                      incoming().uid == existing().uid &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'photoURL', 'preferences']);
+      
+      match /reports/{reportId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidReport(incoming());
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    match /accounts/{accountId} {
+      allow get: if isSignedIn() && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(accountId) && isValidAccount(incoming());
+      allow update: if isSignedIn() && 
+                      isValidAccount(incoming()) &&
+                      existing().userId == request.auth.uid &&
+                      incoming().userId == existing().userId &&
+                      (
+                        // Action: Balance update via transaction
+                        incoming().diff(existing()).affectedKeys().hasOnly(['balance', 'lastUpdated', 'name', 'institution'])
+                      );
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+
+    match /transactions/{txId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(txId) && isValidTransaction(incoming());
+      allow update: if false; // Transactions are immutable for audit integrity
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+
+    match /insights/{insightId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidInsight(incoming());
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+  }
+}

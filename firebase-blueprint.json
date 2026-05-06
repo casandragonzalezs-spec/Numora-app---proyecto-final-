@@ -1,0 +1,133 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account and preference information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "preferences": {
+          "type": "object",
+          "properties": {
+            "currency": { "type": "string", "enum": ["USD", "EUR", "MXN", "GBP"] },
+            "theme": { "type": "string", "enum": ["light", "dark"] }
+          }
+        }
+      },
+      "required": ["uid", "email"]
+    },
+    "Account": {
+      "title": "Financial Account",
+      "description": "Bank account, wallet, or investment portfolio",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["checking", "savings", "investment", "crypto", "cash"] },
+        "balance": { "type": "number" },
+        "currency": { "type": "string" },
+        "institution": { "type": "string" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "type", "balance"]
+    },
+    "Transaction": {
+      "title": "Transaction Record",
+      "description": "Individual income or expense entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "accountId": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string", "format": "date-time" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "tags": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["userId", "accountId", "amount", "date", "type"]
+    },
+    "Budget": {
+      "title": "Monthly Budget",
+      "description": "Budget targets for spending categories",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "category": { "type": "string" },
+        "limit": { "type": "number" },
+        "period": { "type": "string" },
+        "color": { "type": "string" }
+      },
+      "required": ["userId", "category", "limit"]
+    },
+    "Insight": {
+      "title": "AI Insight",
+      "description": "AI-generated financial advice and summaries",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "content": { "type": "string" },
+        "title": { "type": "string" },
+        "type": { "type": "string", "enum": ["advice", "alert", "summary"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "content", "createdAt"]
+    },
+    "Report": {
+      "title": "Financial Report",
+      "description": "AI-generated deep financial analysis of a company",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "fileName": { "type": "string" },
+        "companyName": { "type": "string" },
+        "ticker": { "type": "string" },
+        "period": { "type": "string" },
+        "sector": { "type": "string" },
+        "data": { "type": "object" },
+        "benchmark": { "type": "object" },
+        "analysis": { "type": "string" },
+        "historicalData": { "type": "array" },
+        "mlPredictions": { "type": "array" },
+        "investmentRecommendation": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "companyName", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Stores user profile and preferences"
+    },
+    "/users/{userId}/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Stores detailed financial analysis reports for the user"
+    },
+    "/accounts/{accountId}": {
+      "schema": "Account",
+      "description": "Stores user financial accounts"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Stores historical financial records"
+    },
+    "/budgets/{budgetId}": {
+      "schema": "Budget",
+      "description": "Stores user spending targets"
+    },
+    "/insights/{insightId}": {
+      "schema": "Insight",
+      "description": "Stores AI generated insights"
+    }
+  }
+}
